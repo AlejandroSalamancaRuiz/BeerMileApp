@@ -1,5 +1,25 @@
 import streamlit as st
 import pandas as pd
+import json
+import os
+
+DATA_FILE = "data.json"
+
+def load_data():
+    if os.path.exists(DATA_FILE):
+        with open(DATA_FILE, "r") as f:
+            try:
+                data = json.load(f)
+            except json.JSONDecodeError:
+                data = {"users": {}, "events": []}
+        return data
+    else:
+        return {"users": {}, "events": []}
+
+def save_data():
+    data = {"users": st.session_state.users, "events": st.session_state.events}
+    with open(DATA_FILE, "w") as f:
+        json.dump(data, f)
 
 # -------------------------------
 # CONSTANTS
@@ -32,12 +52,12 @@ BEER_TYPES = [
 ]
 
 # -------------------------------
-# INITIALIZE SESSION STATE
+# INITIALIZE SESSION STATE WITH PERSISTENCE
 # -------------------------------
-if "users" not in st.session_state:
-    st.session_state.users = {}  # {username: team}
-if "events" not in st.session_state:
-    st.session_state.events = []  # List of event dicts
+if "users" not in st.session_state or "events" not in st.session_state:
+    data = load_data()
+    st.session_state.users = data.get("users", {})
+    st.session_state.events = data.get("events", [])
 
 # -------------------------------
 # SIDEBAR NAVIGATION
@@ -68,7 +88,7 @@ if page == "Welcome":
     **Remember:**  
     Race smart, drink responsibly, and may the best team win!
     """)
-    
+
 # -------------------------------
 # REGISTRATION PAGE
 # -------------------------------
@@ -79,6 +99,7 @@ elif page == "Register":
     if st.button("Register"):
         if name:
             st.session_state.users[name] = team
+            save_data()  # Save after registration
             st.success(f"Welcome, **{name}**! You are now driving for **{team}**.")
         else:
             st.error("Please enter your name.")
@@ -94,18 +115,19 @@ elif page == "Log Beer":
         user = st.selectbox("Select your name:", list(st.session_state.users.keys()))
         pub = st.selectbox("Select Pub Number:", list(range(1, 201)))
         beer_type = st.selectbox("Select Beer Type:", BEER_TYPES)
-        # Set default value to 0.5 pint
+        # Default value is set to 0.5 pint
         pints = st.number_input("Amount consumed (in pints)", min_value=0.0, step=0.1, value=0.5, format="%.2f")
         if st.button("Submit Beer"):
             if pints > 0:
                 event = {
                     "type": "beer",
                     "user": user,
-                    "pub": pub,  # now a number
+                    "pub": pub,
                     "beer_type": beer_type,
                     "pints": pints,
                 }
                 st.session_state.events.append(event)
+                save_data()  # Save after logging beer
                 st.success(f"Beer event logged at Pub #{pub}!")
             else:
                 st.error("Please enter a valid number of pints.")
@@ -128,6 +150,7 @@ elif page == "Log Penalty":
                 "points": -10,
             }
             st.session_state.events.append(event)
+            save_data()  # Save after logging penalty
             st.success("Penalty logged successfully!")
 
 # -------------------------------
